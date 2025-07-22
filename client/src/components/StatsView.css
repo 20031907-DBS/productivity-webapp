@@ -1,0 +1,281 @@
+.stats-view {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.stats-header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.stats-header h2 {
+  font-size: 2rem;
+  color: #333;
+  margin-bottom: 0.5rem;
+}
+
+.stats-header p {
+  font-size: 1.1rem;
+  color: #666;
+  margin: 0;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+  gap: 2rem;
+}
+
+.stat-card {
+  background: white;
+  border-radius: 12px;
+  padding: 2rem;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  transition: transform 0.2s ease;
+}
+
+.stat-card:hover {
+  transform: translateY(-2px);
+}
+
+.overview-card, .score-card {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.stat-icon {
+  font-size: 3rem;
+  width: 80px;
+  height: 80px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.stat-content h3 {
+  color: #333;
+  margin: 0 0 0.5rem 0;
+  font-size: 1.2rem;
+}
+
+.stat-number {
+  font-size: 2.5rem;
+  font-weight: bold;
+  color: #667eea;
+  margin-bottom: 0.5rem;
+}
+
+.stat-content p {
+  color: #666;
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.recommendations-card {
+  grid-column: span 2;
+}
+
+.recommendations-card h3 {
+  color: #333;
+  margin: 0 0 1.5rem 0;
+  font-size: 1.3rem;
+}
+
+.recommendations-chart {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.recommendation-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.recommendation-bar {
+  flex: 1;
+  height: 24px;
+  background: #f0f0f0;
+  border-radius: 12px;
+  overflow: hidden;
+  position: relative;
+}
+
+.bar-fill {
+  height: 100%;
+  border-radius: 12px;
+  transition: width 0.8s ease;
+  min-width: 2px;
+}
+
+.recommendation-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  min-width: 200px;
+}
+
+.recommendation-label {
+  font-weight: 500;
+  color: #333;
+}
+
+.recommendation-count {
+  font-weight: bold;
+  color: #667eea;
+  background: #f0f4ff;
+  padding: 0.25rem 0.75rem;
+  border-radius: 12px;
+  font-size: 0.9rem;
+}
+
+.insights-card h3, .tips-card h3 {
+  color: #333;
+  margin: 0 0 1.5rem 0;
+  font-size: 1.3rem;
+}
+
+.insights-list, .tips-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.insight-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.insight-icon {
+  font-size: 1.5rem;
+  width: 40px;
+  height: 40px;
+  background: linear-gradient(135deg, #4caf50 0%, #45a049 100%);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.insight-content strong {
+  display: block;
+  color: #333;
+  margin-bottom: 0.5rem;
+  font-size: 1rem;
+}
+
+.insight-content p {
+  color: #666;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.tip-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.tip-number {
+  width: 32px;
+  height: 32px;
+  background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%);
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 0.9rem;
+  flex-shrink: 0;
+}
+
+.tip-item p {
+  color: #555;
+  margin: 0;
+  line-height: 1.5;
+  padding-top: 0.25rem;
+}
+
+.loading-state, .error-state {
+  text-align: center;
+  padding: 4rem 2rem;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+}
+
+.loading-state h3, .error-state h3 {
+  color: #333;
+  margin-bottom: 1rem;
+}
+
+.error-state p {
+  color: #666;
+  margin-bottom: 2rem;
+}
+
+.retry-btn {
+  background: #667eea;
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: background-color 0.2s;
+}
+
+.retry-btn:hover {
+  background: #5a6fd8;
+}
+
+/* Mobile Responsiveness */
+@media (max-width: 768px) {
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .recommendations-card {
+    grid-column: span 1;
+  }
+  
+  .overview-card, .score-card {
+    flex-direction: column;
+    text-align: center;
+  }
+  
+  .stat-icon {
+    font-size: 2.5rem;
+    width: 60px;
+    height: 60px;
+  }
+  
+  .stat-number {
+    font-size: 2rem;
+  }
+  
+  .recommendation-item {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+  }
+  
+  .recommendation-info {
+    min-width: auto;
+  }
+  
+  .insight-item, .tip-item {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 0.75rem;
+  }
+}

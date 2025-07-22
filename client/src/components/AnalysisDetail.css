@@ -1,0 +1,274 @@
+.analysis-detail {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+.detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+  padding-bottom: 1rem;
+  border-bottom: 2px solid #eee;
+}
+
+.back-btn {
+  background: #667eea;
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  font-size: 0.9rem;
+}
+
+.back-btn:hover {
+  background: #5a6fd8;
+}
+
+.analysis-date {
+  color: #666;
+  font-size: 0.9rem;
+}
+
+.detail-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.video-section,
+.intention-section,
+.results-section,
+.metadata-section {
+  background: white;
+  padding: 1.5rem;
+  border-radius: 10px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.video-section h2,
+.intention-section h2,
+.results-section h2 {
+  color: #333;
+  margin: 0 0 1rem 0;
+  font-size: 1.3rem;
+}
+
+.video-info-detail p {
+  margin: 0.5rem 0;
+  line-height: 1.5;
+}
+
+.video-info-detail a {
+  color: #667eea;
+  text-decoration: none;
+  word-break: break-all;
+}
+
+.video-info-detail a:hover {
+  text-decoration: underline;
+}
+
+.learning-intention-detail {
+  background: #f8f9fa;
+  padding: 1rem;
+  border-radius: 5px;
+  border-left: 4px solid #667eea;
+}
+
+.learning-intention-detail p {
+  margin: 0;
+  line-height: 1.6;
+  color: #333;
+}
+
+.match-score-detail {
+  margin-bottom: 2rem;
+}
+
+.score-display-large {
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+  justify-content: center;
+  padding: 2rem;
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  border-radius: 10px;
+}
+
+.score-number-large {
+  font-size: 4rem;
+  font-weight: bold;
+  color: #667eea;
+}
+
+.recommendation-large {
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.key-points-detail,
+.insights-detail {
+  margin-bottom: 2rem;
+}
+
+.key-points-detail h3,
+.insights-detail h3,
+.reasoning-detail h3,
+.timestamps-detail h3,
+.metadata-section h3 {
+  color: #333;
+  margin: 0 0 1rem 0;
+  font-size: 1.1rem;
+}
+
+.key-points-detail ul,
+.insights-detail ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.key-points-detail li,
+.insights-detail li {
+  background: #f8f9fa;
+  padding: 0.75rem;
+  margin-bottom: 0.5rem;
+  border-radius: 5px;
+  border-left: 4px solid #667eea;
+  line-height: 1.5;
+}
+
+.reasoning-detail {
+  margin-bottom: 2rem;
+}
+
+.reasoning-detail p {
+  background: #f8f9fa;
+  padding: 1rem;
+  border-radius: 5px;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.timestamps-detail {
+  margin-bottom: 2rem;
+}
+
+.timestamp-item-detail {
+  background: #f8f9fa;
+  padding: 1rem;
+  margin-bottom: 0.5rem;
+  border-radius: 5px;
+  border-left: 4px solid #ff9800;
+}
+
+.timestamp-item-detail strong {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: #333;
+}
+
+.timestamp-item-detail p {
+  color: #666;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.metadata-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+.metadata-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.metadata-item strong {
+  color: #333;
+  font-size: 0.9rem;
+}
+
+.metadata-item span {
+  color: #666;
+  font-size: 0.9rem;
+}
+
+.analysis-id {
+  font-family: monospace;
+  font-size: 0.8rem !important;
+  word-break: break-all;
+}
+
+/* Error and loading states */
+.loading-state,
+.error-state {
+  text-align: center;
+  padding: 3rem 2rem;
+  background: white;
+  border-radius: 10px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.error-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  margin-top: 1rem;
+}
+
+.retry-btn {
+  background: #667eea;
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.retry-btn:hover {
+  background: #5a6fd8;
+}
+
+/* Mobile responsiveness */
+@media (max-width: 768px) {
+  .analysis-detail {
+    padding: 1rem;
+  }
+  
+  .detail-header {
+    flex-direction: column;
+    gap: 1rem;
+    align-items: flex-start;
+  }
+  
+  .score-display-large {
+    flex-direction: column;
+    gap: 1rem;
+    text-align: center;
+  }
+  
+  .score-number-large {
+    font-size: 3rem;
+  }
+  
+  .recommendation-large {
+    font-size: 1.2rem;
+  }
+  
+  .metadata-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .error-actions {
+    flex-direction: column;
+    align-items: center;
+  }
+}

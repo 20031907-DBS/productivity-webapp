@@ -1,7 +1,7 @@
-const { YoutubeTranscript } = require('youtube-transcript');
+const { Innertube } = require('youtubei.js');
 
 class YouTubeService {
-  
+
   async extractTranscript(videoUrl) {
     try {
       const videoId = this.extractVideoId(videoUrl);
@@ -9,54 +9,60 @@ class YouTubeService {
         throw new Error('Invalid YouTube URL format');
       }
 
-      // Try to fetch transcript with different language options
-      let transcriptArray = null;
-      const languageOptions = ['en', 'en-US', 'auto'];
+      // Initialize YouTube client
+      console.log(`   Connecting to YouTube API for video: ${videoId}`);
+      const youtube = await Innertube.create();
+      
+      console.log(`   Fetching video information...`);
+      const info = await youtube.getInfo(videoId);
+      
+      console.log(`   Video title: "${info.basic_info?.title || 'Unknown'}"`);
+      console.log(`   Duration: ${info.basic_info?.duration?.text || 'Unknown'}`);
 
-      for (const lang of languageOptions) {
-        try {
-          transcriptArray = await YoutubeTranscript.fetchTranscript(videoId, {
-            lang: lang,
-            country: 'US'
-          });
-          if (transcriptArray && transcriptArray.length > 0) {
-            break;
-          }
-        } catch (langError) {
-          // Continue to next language option
-          continue;
-        }
-      }
-
-      // If still no transcript, try without language specification
-      if (!transcriptArray || transcriptArray.length === 0) {
-        transcriptArray = await YoutubeTranscript.fetchTranscript(videoId);
-      }
-
-      if (!transcriptArray || transcriptArray.length === 0) {
-        
-        if (process.env.NODE_ENV === 'development' || process.env.MOCK_TRANSCRIPTS === 'true') {
-          return this.getMockTranscript(videoId);
-        }
+      // Check if captions are available
+      if (!info.captions) {
         throw new Error('No transcript available for this video. The video may not have captions enabled or may be private.');
       }
 
+      console.log(`   Captions detected, extracting transcript...`);
+      // Get transcript
+      const transcriptData = await info.getTranscript();
+
+      // Extract transcript segments
+      if (!transcriptData.transcript ||
+        !transcriptData.transcript.content ||
+        !transcriptData.transcript.content.body ||
+        !transcriptData.transcript.content.body.initial_segments) {
+        throw new Error('No transcript segments found for this video.');
+      }
+
+      const segments = transcriptData.transcript.content.body.initial_segments;
+
+      if (!segments || segments.length === 0) {
+        throw new Error('No transcript content available for this video.');
+      }
+
       // Combine all transcript segments into a single string
-      const transcript = transcriptArray
-        .map(item => item.text)
+      const transcript = segments
+        .map(segment => segment.snippet.text)
         .join(' ')
         .replace(/\s+/g, ' ') // Clean up multiple spaces
         .trim();
 
+      if (!transcript || transcript.length === 0) {
+        throw new Error('Transcript content is empty for this video.');
+      }
+
       return transcript;
     } catch (error) {
-      if (error.message.includes('Transcript is disabled')) {
-        throw new Error('Transcript is disabled for this video');
-      } else if (error.message.includes('Video unavailable')) {
+      if (error.message.includes('Video unavailable') || error.message.includes('Private video')) {
         throw new Error('Video is unavailable or private');
       } else if (error.message.includes('Invalid YouTube URL')) {
         throw error;
-      } else if (error.message.includes('No transcript available')) {
+      } else if (error.message.includes('No transcript available') ||
+        error.message.includes('No transcript segments') ||
+        error.message.includes('No transcript content') ||
+        error.message.includes('Transcript content is empty')) {
         throw error;
       } else {
         throw new Error(`Failed to extract transcript: ${error.message}`);
@@ -120,18 +126,7 @@ class YouTubeService {
     };
   }
 
-  /**
-   * Returns a mock transcript for development/testing purposes
-   
-   */
-  getMockTranscript(videoId) {
-    const mockTranscripts = {
-      'dQw4w9WgXcQ': 'This is a classic music video featuring Rick Astley performing Never Gonna Give You Up. The video includes dancing, singing, and has become an internet meme known as Rickrolling. The song talks about commitment and never letting someone down.',
-      'default': `This is a mock transcript for video ${videoId}. In a real scenario, this would contain the actual spoken content from the YouTube video. The transcript would include all the dialogue, narration, and spoken words that appear in the video. This mock content is being used for development and testing purposes when actual transcripts are not available. The content would typically be much longer and contain the actual educational or entertainment content from the video.`
-    };
 
-    return mockTranscripts[videoId] || mockTranscripts['default'];
-  }
 }
 
 module.exports = YouTubeService;

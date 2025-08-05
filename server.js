@@ -15,6 +15,7 @@ const analysisRoutes = require('./routes/analysis');
 
 const YouTubeService = require('./services/YouTubeService');
 const AIAnalysisService = require('./services/AIAnalysisService');
+const ProgressLogger = require('./utils/ProgressLogger');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -27,6 +28,7 @@ const youtubeService = new YouTubeService();
 const aiAnalysisService = new AIAnalysisService();
 
 // Middleware
+app.set('trust proxy', 1); // Trust first proxy for rate limiting
 app.use(helmet());
 app.use(cors({
   origin: process.env.FRONTEND_URL || 'http://localhost:3001',
@@ -115,42 +117,83 @@ app.post('/api/analyze', analysisLimiter, async (req, res) => {
       });
     }
 
-    console.log(`Starting analysis for video: ${videoUrl}`);
-    console.log(`Learning intention: ${learningIntention}`);
+    // Initialize progress logger
+    const sessionId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const logger = new ProgressLogger(sessionId);
+    
+    logger.logHeader(videoUrl, learningIntention);
 
-    // Step 1: Extract transcript
+    // Step 1: Validate and extract video ID
+    logger.logStep('Validating YouTube URL', 'start');
+    const videoId = youtubeService.extractVideoId(videoUrl);
+    if (!videoId) {
+      logger.logError(new Error('Invalid YouTube URL format'), 'URL Validation');
+      return res.status(400).json({
+        error: 'Invalid YouTube URL format',
+        code: 'INVALID_YOUTUBE_URL'
+      });
+    }
+    logger.logStep('URL Validation', 'success', `Video ID: ${videoId}`);
+
+    // Step 2: Extract transcript
     let transcript;
     try {
+      logger.logStep('Extracting video transcript', 'start', 'Connecting to YouTube API...');
+      logger.logProgress('Initializing YouTube client');
+      
       transcript = await youtubeService.extractTranscript(videoUrl);
-      console.log(`Transcript extracted: ${transcript.length} characters`);
+      
+      logger.logStep('Transcript Extraction', 'success', `${transcript.length} characters extracted`);
+      logger.logStep('Transcript Extraction', 'info', `First 100 chars: "${transcript.substring(0, 100)}..."`);
     } catch (error) {
-      console.error('Transcript extraction failed:', error.message);
+      logger.logError(error, 'Transcript Extraction');
       return res.status(422).json({
         error: error.message,
         code: 'TRANSCRIPT_EXTRACTION_FAILED'
       });
     }
 
-    // Step 2: Get video metadata
+    // Step 3: Get video metadata
     let videoMetadata;
     try {
+      logger.logStep('Fetching video metadata', 'start');
       videoMetadata = await youtubeService.getVideoMetadata(videoUrl);
+      logger.logStep('Metadata Extraction', 'success', `Title: ${videoMetadata.title || 'N/A'}`);
     } catch (error) {
-      console.warn('Metadata extraction failed:', error.message);
+      logger.logStep('Metadata Extraction', 'error', error.message);
+      logger.logStep('Metadata Extraction', 'info', 'Using fallback metadata');
       videoMetadata = {
-        videoId: youtubeService.extractVideoId(videoUrl),
+        videoId: videoId,
         url: videoUrl,
         extractedAt: new Date().toISOString()
       };
     }
 
-    // Step 3: Perform AI analysis
+    // Step 4: Perform AI analysis
     let analysisResults;
     try {
-      analysisResults = await aiAnalysisService.analyzeContent(transcript, learningIntention);
-      console.log(`Analysis completed with ${analysisResults.matchScore}% match score`);
+      logger.logStep('AI Analysis', 'start', 'Sending to Ollama for processing...');
+      logger.logProgress('Preparing transcript for AI analysis');
+      
+      // Show progress during AI analysis
+      const analysisPromise = aiAnalysisService.analyzeContent(transcript, learningIntention);
+      
+      // Simulate progress updates (since we can't get real progress from Ollama)
+      const progressInterval = setInterval(() => {
+        const elapsed = Date.now() - startTime;
+        if (elapsed < 5000) {
+          logger.logProgress('AI model processing content...', Math.min(20 + (elapsed / 250), 80));
+        }
+      }, 1000);
+      
+      analysisResults = await analysisPromise;
+      clearInterval(progressInterval);
+      
+      logger.logStep('AI Analysis', 'success', `Match score: ${analysisResults.matchScore}%`);
+      logger.logStep('AI Analysis', 'info', `Generated ${analysisResults.keyPoints?.length || 0} key points`);
+      logger.logStep('AI Analysis', 'info', `Generated ${analysisResults.insights?.length || 0} insights`);
     } catch (error) {
-      console.error('AI analysis failed:', error.message);
+      logger.logError(error, 'AI Analysis');
       return res.status(503).json({
         error: error.message,
         code: 'AI_ANALYSIS_FAILED'
@@ -187,11 +230,18 @@ app.post('/api/analyze', analysisLimiter, async (req, res) => {
       }
     };
 
-    console.log(`Analysis completed in ${processingTime}ms`);
+    // Log final results
+    logger.logResults(response.data);
+    
     res.json(response);
 
   } catch (error) {
-    console.error('Unexpected error during analysis:', error);
+    // Log error with progress logger if available
+    if (typeof logger !== 'undefined') {
+      logger.logError(error, 'Unexpected Error');
+    } else {
+      console.error('Unexpected error during analysis:', error);
+    }
     
     const processingTime = Date.now() - startTime;
     
@@ -228,14 +278,13 @@ app.use('*', (req, res) => {
 
 // Start server
 app.listen(PORT, () => {
-  console.log(`🚀 YouTube Learning Analyzer API running on port ${PORT}`);
-  console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`🤖 Mock AI Analysis: ${process.env.MOCK_AI_ANALYSIS === 'true' ? 'Enabled' : 'Disabled'}`);
-  console.log(`📝 Mock Transcripts: ${process.env.MOCK_TRANSCRIPTS === 'true' ? 'Enabled' : 'Disabled'}`);
-  console.log(`🔗 Health check: http://localhost:${PORT}/health`);
-  console.log(`🎯 Analysis endpoint: http://localhost:${PORT}/api/analysis/analyze`);
-  console.log(`🔐 Auth endpoints: http://localhost:${PORT}/api/auth/*`);
-  console.log(`📊 Analysis history: http://localhost:${PORT}/api/analysis/history`);
+  console.log(`YouTube Learning Analyzer API running on port ${PORT}`);
+  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`Mock AI Analysis: ${process.env.MOCK_AI_ANALYSIS === 'true' ? 'Enabled' : 'Disabled'}`);
+  console.log(`Health check: http://localhost:${PORT}/health`);
+  console.log(`Analysis endpoint: http://localhost:${PORT}/api/analysis/analyze`);
+  console.log(`Auth endpoints: http://localhost:${PORT}/api/auth/*`);
+  console.log(`Analysis history: http://localhost:${PORT}/api/analysis/history`);
 });
 
 module.exports = app;

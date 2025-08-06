@@ -1,15 +1,12 @@
 import React, { useState } from 'react';
-import { useAuth } from '../contexts/AuthContext';
 import './AnalyzerView.css';
 
-const AnalyzerView = ({ isGuestMode = false }) => {
+const AnalyzerView = () => {
   const [videoUrl, setVideoUrl] = useState('');
   const [learningIntention, setLearningIntention] = useState('');
   const [analysis, setAnalysis] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  
-  const { isAuthenticated } = useAuth();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -18,11 +15,10 @@ const AnalyzerView = ({ isGuestMode = false }) => {
     setAnalysis(null);
 
     try {
-      const response = await fetch('/api/analysis/analyze', {
+      const response = await fetch('/api/analyze', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          ...(isAuthenticated && { 'Authorization': `Bearer ${localStorage.getItem('token')}` })
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           videoUrl,
@@ -78,17 +74,7 @@ const AnalyzerView = ({ isGuestMode = false }) => {
         <p>Discover if videos match your learning goals with AI-powered analysis</p>
       </div>
 
-      {isGuestMode && (
-        <div className="guest-notice">
-          <div className="notice-content">
-            <span className="notice-icon">🚀</span>
-            <div className="notice-text">
-              <strong>Guest Mode Active</strong>
-              <p>You're using the analyzer in guest mode. Sign up to save your analysis history and unlock additional features!</p>
-            </div>
-          </div>
-        </div>
-      )}
+
 
       <div className="analyzer-container">
         <div className="analyzer-form-section">
@@ -169,7 +155,15 @@ const AnalyzerView = ({ isGuestMode = false }) => {
                 <div className="loading-circle"></div>
                 <div className="loading-circle"></div>
               </div>
-              <p>Analyzing video content with AI...</p>
+              <div className="loading-content">
+                <h3>🤖 AI Analysis in Progress</h3>
+                <p>🎵 Extracting audio and generating transcript with Whisper...</p>
+                <p>🧠 Analyzing content relevance with Qwen3 local AI model...</p>
+                <p>⚡ Processing learning insights and recommendations...</p>
+                <div className="loading-note">
+                  <strong>Note:</strong> This process runs entirely on your local machine for privacy
+                </div>
+              </div>
             </div>
           )}
         </div>
@@ -209,8 +203,30 @@ const AnalyzerView = ({ isGuestMode = false }) => {
               <div className="result-card video-info-card">
                 <h3>🎥 Video Information</h3>
                 <div className="video-details">
-                  <p><strong>URL:</strong> <a href={analysis.videoMetadata.url} target="_blank" rel="noopener noreferrer">{analysis.videoMetadata.url}</a></p>
-                  <p><strong>Video ID:</strong> {analysis.videoMetadata.videoId}</p>
+                  {analysis.videoMetadata.title && (
+                    <div className="video-title">
+                      <strong>Title:</strong> {analysis.videoMetadata.title}
+                    </div>
+                  )}
+                  {analysis.videoMetadata.channelName && (
+                    <div className="video-channel">
+                      <strong>Channel:</strong> {analysis.videoMetadata.channelName}
+                    </div>
+                  )}
+                  {analysis.videoMetadata.duration && (
+                    <div className="video-duration">
+                      <strong>Duration:</strong> {analysis.videoMetadata.duration}
+                    </div>
+                  )}
+                  <div className="video-url">
+                    <strong>URL:</strong> <a href={analysis.videoMetadata.url} target="_blank" rel="noopener noreferrer">{analysis.videoMetadata.url}</a>
+                  </div>
+                  <div className="video-id">
+                    <strong>Video ID:</strong> <code>{analysis.videoMetadata.videoId}</code>
+                  </div>
+                  <div className="analysis-meta">
+                    <strong>Analyzed:</strong> {new Date(analysis.metadata.analyzedAt).toLocaleString()}
+                  </div>
                 </div>
               </div>
 
@@ -280,6 +296,19 @@ const AnalyzerView = ({ isGuestMode = false }) => {
                         </div>
                         <h4 className="timestamp-title">{timestamp.title}</h4>
                         <p className="timestamp-description">{timestamp.description}</p>
+                        
+                        {timestamp.keyTakeaways && (
+                          <div className="key-takeaways">
+                            <strong>🎯 Key Takeaways:</strong> {timestamp.keyTakeaways}
+                          </div>
+                        )}
+                        
+                        {timestamp.practicalApplication && (
+                          <div className="practical-application">
+                            <strong>🛠️ Practical Application:</strong> {timestamp.practicalApplication}
+                          </div>
+                        )}
+                        
                         <div className="timestamp-meta">
                           <span className="relevance-score">
                             Relevance: {timestamp.relevanceScore}/10
@@ -332,6 +361,55 @@ const AnalyzerView = ({ isGuestMode = false }) => {
                         <span className="meta-value">{analysis.analysis.prerequisiteCheck}</span>
                       </div>
                     )}
+                  </div>
+                </div>
+              )}
+
+              {analysis.analysis.learningPath && (
+                <div className="result-card learning-path-card">
+                  <h3>🗺️ Learning Path</h3>
+                  <div className="learning-path-steps">
+                    <div className="path-step">
+                      <div className="step-header">
+                        <span className="step-icon">📚</span>
+                        <h4>Before Watching</h4>
+                      </div>
+                      <p>{analysis.analysis.learningPath.beforeWatching}</p>
+                    </div>
+                    <div className="path-step">
+                      <div className="step-header">
+                        <span className="step-icon">🎥</span>
+                        <h4>During Watching</h4>
+                      </div>
+                      <p>{analysis.analysis.learningPath.duringWatching}</p>
+                    </div>
+                    <div className="path-step">
+                      <div className="step-header">
+                        <span className="step-icon">🚀</span>
+                        <h4>After Watching</h4>
+                      </div>
+                      <p>{analysis.analysis.learningPath.afterWatching}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {analysis.analysis.contentQuality && (
+                <div className="result-card content-quality-card">
+                  <h3>⭐ Content Quality Assessment</h3>
+                  <div className="quality-metrics">
+                    <div className="quality-item">
+                      <span className="quality-label">Teaching Clarity:</span>
+                      <span className="quality-value">{analysis.analysis.contentQuality.teachingClarity}</span>
+                    </div>
+                    <div className="quality-item">
+                      <span className="quality-label">Practical Examples:</span>
+                      <span className="quality-value">{analysis.analysis.contentQuality.practicalExamples}</span>
+                    </div>
+                    <div className="quality-item">
+                      <span className="quality-label">Comprehensiveness:</span>
+                      <span className="quality-value">{analysis.analysis.contentQuality.comprehensiveness}</span>
+                    </div>
                   </div>
                 </div>
               )}

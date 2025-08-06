@@ -4,7 +4,9 @@ import './Auth.css';
 
 const RegisterForm = ({ onToggleMode, onClose }) => {
   const [formData, setFormData] = useState({
-    name: '',
+    firstName: '',
+    lastName: '',
+    username: '',
     email: '',
     password: '',
     confirmPassword: ''
@@ -12,7 +14,7 @@ const RegisterForm = ({ onToggleMode, onClose }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const { register } = useAuth();
+  const { registerUser } = useAuth();
 
   const handleChange = (e) => {
     setFormData({
@@ -23,16 +25,20 @@ const RegisterForm = ({ onToggleMode, onClose }) => {
   };
 
   const validateForm = () => {
-    if (formData.name.trim().length < 2) {
-      return 'Name must be at least 2 characters long';
+    if (formData.firstName.trim().length < 2) {
+      return 'First name must be at least 2 characters long';
+    }
+    
+    if (formData.lastName.trim().length < 2) {
+      return 'Last name must be at least 2 characters long';
+    }
+    
+    if (formData.username.trim().length < 3) {
+      return 'Username must be at least 3 characters long';
     }
 
     if (formData.password.length < 6) {
       return 'Password must be at least 6 characters long';
-    }
-
-    if (!/(?=.*[a-zA-Z])(?=.*\d)/.test(formData.password)) {
-      return 'Password must contain at least one letter and one number';
     }
 
     if (formData.password !== formData.confirmPassword) {
@@ -54,7 +60,13 @@ const RegisterForm = ({ onToggleMode, onClose }) => {
       return;
     }
 
-    const result = await register(formData.name, formData.email, formData.password);
+    const result = await registerUser(
+      formData.firstName, 
+      formData.lastName, 
+      formData.username, 
+      formData.email, 
+      formData.password
+    );
     
     if (result.success) {
       onClose();
@@ -81,17 +93,47 @@ const RegisterForm = ({ onToggleMode, onClose }) => {
       )}
 
       <form onSubmit={handleSubmit}>
+        <div className="form-row">
+          <div className="form-group">
+            <label htmlFor="firstName">First Name</label>
+            <input
+              type="text"
+              id="firstName"
+              name="firstName"
+              value={formData.firstName}
+              onChange={handleChange}
+              required
+              placeholder="First name"
+              minLength="2"
+            />
+          </div>
+          
+          <div className="form-group">
+            <label htmlFor="lastName">Last Name</label>
+            <input
+              type="text"
+              id="lastName"
+              name="lastName"
+              value={formData.lastName}
+              onChange={handleChange}
+              required
+              placeholder="Last name"
+              minLength="2"
+            />
+          </div>
+        </div>
+        
         <div className="form-group">
-          <label htmlFor="name">Full Name</label>
+          <label htmlFor="username">Username</label>
           <input
             type="text"
-            id="name"
-            name="name"
-            value={formData.name}
+            id="username"
+            name="username"
+            value={formData.username}
             onChange={handleChange}
             required
-            placeholder="Enter your full name"
-            minLength="2"
+            placeholder="Choose a username"
+            minLength="3"
           />
         </div>
 

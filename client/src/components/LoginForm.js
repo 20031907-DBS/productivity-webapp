@@ -10,7 +10,7 @@ const LoginForm = ({ onToggleMode, onClose }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const { login } = useAuth();
+  const { loginUser } = useAuth();
 
   const handleChange = (e) => {
     setFormData({
@@ -25,7 +25,7 @@ const LoginForm = ({ onToggleMode, onClose }) => {
     setLoading(true);
     setError('');
 
-    const result = await login(formData.email, formData.password);
+    const result = await loginUser(formData.email, formData.password);
     
     if (result.success) {
       onClose();

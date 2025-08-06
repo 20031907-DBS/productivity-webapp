@@ -25,13 +25,12 @@ const UserMenu = () => {
     setIsOpen(false);
   };
 
-  const getInitials = (name) => {
-    return name
-      .split(' ')
-      .map(word => word[0])
-      .join('')
-      .toUpperCase()
-      .slice(0, 2);
+  const getInitials = (firstName, lastName) => {
+    return (firstName[0] + (lastName ? lastName[0] : '')).toUpperCase();
+  };
+  
+  const getFullName = (firstName, lastName) => {
+    return `${firstName} ${lastName || ''}`.trim();
   };
 
   return (
@@ -41,16 +40,16 @@ const UserMenu = () => {
         onClick={() => setIsOpen(!isOpen)}
       >
         <div className="user-avatar">
-          {getInitials(user.name)}
+          {getInitials(user.firstName, user.lastName)}
         </div>
-        <span>{user.name}</span>
+        <span>{getFullName(user.firstName, user.lastName)}</span>
         <span style={{ fontSize: '0.8rem' }}>▼</span>
       </button>
 
       {isOpen && (
         <div className="user-menu-dropdown">
           <div className="user-info">
-            <h4>{user.name}</h4>
+            <h4>{getFullName(user.firstName, user.lastName)}</h4>
             <p>{user.email}</p>
             <p style={{ fontSize: '0.8rem', marginTop: '0.5rem' }}>
               {user.analysisCount} analyses completed

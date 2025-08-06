@@ -1,6 +1,10 @@
 const { Innertube } = require('youtubei.js');
+const AudioTranscriptionService = require('./AudioTranscriptionService');
 
 class YouTubeService {
+  constructor() {
+    this.audioTranscriptionService = new AudioTranscriptionService();
+  }
 
   async extractTranscript(videoUrl) {
     try {
@@ -9,61 +13,24 @@ class YouTubeService {
         throw new Error('Invalid YouTube URL format');
       }
 
-      // Initialize YouTube client
-      console.log(`   Connecting to YouTube API for video: ${videoId}`);
-      const youtube = await Innertube.create();
+      console.log(`Extracting transcript using local AI for video: ${videoId}`);
       
-      console.log(`   Fetching video information...`);
-      const info = await youtube.getInfo(videoId);
+      // Use local transcription service instead of YouTube captions
+      const transcriptionResult = await this.audioTranscriptionService.transcribeFromYouTube(videoUrl);
       
-      console.log(`   Video title: "${info.basic_info?.title || 'Unknown'}"`);
-      console.log(`   Duration: ${info.basic_info?.duration?.text || 'Unknown'}`);
-
-      // Check if captions are available
-      if (!info.captions) {
-        throw new Error('No transcript available for this video. The video may not have captions enabled or may be private.');
+      if (!transcriptionResult.transcript || transcriptionResult.transcript.length === 0) {
+        throw new Error('Failed to generate transcript from video audio');
       }
 
-      console.log(`   Captions detected, extracting transcript...`);
-      // Get transcript
-      const transcriptData = await info.getTranscript();
-
-      // Extract transcript segments
-      if (!transcriptData.transcript ||
-        !transcriptData.transcript.content ||
-        !transcriptData.transcript.content.body ||
-        !transcriptData.transcript.content.body.initial_segments) {
-        throw new Error('No transcript segments found for this video.');
-      }
-
-      const segments = transcriptData.transcript.content.body.initial_segments;
-
-      if (!segments || segments.length === 0) {
-        throw new Error('No transcript content available for this video.');
-      }
-
-      // Combine all transcript segments into a single string
-      const transcript = segments
-        .map(segment => segment.snippet.text)
-        .join(' ')
-        .replace(/\s+/g, ' ') // Clean up multiple spaces
-        .trim();
-
-      if (!transcript || transcript.length === 0) {
-        throw new Error('Transcript content is empty for this video.');
-      }
-
-      return transcript;
+      console.log(`Local transcription completed: ${transcriptionResult.segments.length} segments, ${transcriptionResult.language} language`);
+      
+      return transcriptionResult.transcript;
+      
     } catch (error) {
-      if (error.message.includes('Video unavailable') || error.message.includes('Private video')) {
-        throw new Error('Video is unavailable or private');
-      } else if (error.message.includes('Invalid YouTube URL')) {
+      if (error.message.includes('Invalid YouTube URL')) {
         throw error;
-      } else if (error.message.includes('No transcript available') ||
-        error.message.includes('No transcript segments') ||
-        error.message.includes('No transcript content') ||
-        error.message.includes('Transcript content is empty')) {
-        throw error;
+      } else if (error.message.includes('Transcription failed')) {
+        throw new Error(`Failed to transcribe video: ${error.message}`);
       } else {
         throw new Error(`Failed to extract transcript: ${error.message}`);
       }
@@ -108,9 +75,9 @@ class YouTubeService {
   }
 
   /**
-   * Gets basic video metadata from URL (for future enhancement)
+   * Gets video metadata using YouTube API
    * @param {string} videoUrl - The YouTube video URL
-   * @returns {Promise<object>} - Basic video metadata
+   * @returns {Promise<object>} - Video metadata
    */
   async getVideoMetadata(videoUrl) {
     const videoId = this.extractVideoId(videoUrl);
@@ -118,12 +85,32 @@ class YouTubeService {
       throw new Error('Invalid YouTube URL format');
     }
 
-    // For now, return basic info. This can be enhanced with YouTube API later
-    return {
-      videoId,
-      url: videoUrl,
-      extractedAt: new Date().toISOString()
-    };
+    try {
+      console.log(`Fetching metadata for video: ${videoId}`);
+      const youtube = await Innertube.create();
+      const info = await youtube.getInfo(videoId);
+      
+      return {
+        videoId,
+        url: videoUrl,
+        title: info.basic_info?.title || 'Unknown Title',
+        duration: info.basic_info?.duration?.text || null,
+        channelName: info.basic_info?.channel?.name || null,
+        viewCount: info.basic_info?.view_count || null,
+        extractedAt: new Date().toISOString()
+      };
+    } catch (error) {
+      console.log(`Failed to fetch metadata, using fallback: ${error.message}`);
+      // Fallback to basic info if metadata extraction fails
+      return {
+        videoId,
+        url: videoUrl,
+        title: 'Video Title Not Available',
+        duration: null,
+        channelName: null,
+        extractedAt: new Date().toISOString()
+      };
+    }
   }
 
 

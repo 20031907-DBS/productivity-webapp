@@ -1,0 +1,143 @@
+.admin-panel {
+  min-height: 100vh;
+  background: #f8fafc;
+}
+
+.admin-panel-header {
+  background: white;
+  border-bottom: 1px solid #e2e8f0;
+  padding: 20px 30px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.admin-panel-title h1 {
+  color: #2d3748;
+  margin: 0 0 4px 0;
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.admin-panel-title p {
+  color: #718096;
+  margin: 0;
+  font-size: 14px;
+}
+
+.admin-panel-user {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.admin-user-info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.admin-welcome {
+  color: #2d3748;
+  font-weight: 500;
+  font-size: 14px;
+}
+
+.admin-role {
+  color: #667eea;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.admin-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.back-to-main-btn,
+.admin-logout-btn {
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: none;
+}
+
+.back-to-main-btn {
+  background: #e2e8f0;
+  color: #4a5568;
+}
+
+.back-to-main-btn:hover {
+  background: #cbd5e0;
+}
+
+.admin-logout-btn {
+  background: #fed7d7;
+  color: #c53030;
+}
+
+.admin-logout-btn:hover {
+  background: #feb2b2;
+}
+
+.admin-panel-content {
+  padding: 30px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+/* Override AdminDashboard styles for better integration */
+.admin-panel .admin-dashboard {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+  padding: 30px;
+}
+
+.admin-panel .admin-header {
+  border-bottom: 1px solid #e2e8f0;
+  padding-bottom: 20px;
+  margin-bottom: 30px;
+}
+
+.admin-panel .admin-header h2 {
+  color: #2d3748;
+  margin: 0 0 8px 0;
+}
+
+.admin-panel .admin-header p {
+  color: #718096;
+  margin: 0;
+}
+
+@media (max-width: 768px) {
+  .admin-panel-header {
+    flex-direction: column;
+    gap: 15px;
+    align-items: flex-start;
+    padding: 20px;
+  }
+  
+  .admin-panel-user {
+    width: 100%;
+    justify-content: space-between;
+  }
+  
+  .admin-user-info {
+    align-items: flex-start;
+  }
+  
+  .admin-panel-content {
+    padding: 20px;
+  }
+  
+  .admin-panel .admin-dashboard {
+    padding: 20px;
+  }
+}

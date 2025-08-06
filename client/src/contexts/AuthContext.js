@@ -14,114 +14,94 @@ export const useAuth = () => {
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [token, setToken] = useState(localStorage.getItem('token'));
 
-  // Configure axios defaults
   useEffect(() => {
-    if (token) {
-      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-    } else {
-      delete axios.defaults.headers.common['Authorization'];
-    }
-  }, [token]);
-
-  // Check if user is authenticated on app load
-  useEffect(() => {
-    const checkAuth = async () => {
-      if (token) {
-        try {
-          const response = await axios.get('/api/auth/me');
-          setUser(response.data.data.user);
-        } catch (error) {
-          console.error('Auth check failed:', error);
-          logout();
-        }
+    // Check if user is stored in localStorage
+    const storedUser = localStorage.getItem('user');
+    if (storedUser) {
+      try {
+        setUser(JSON.parse(storedUser));
+      } catch (error) {
+        console.error('Error parsing stored user:', error);
+        localStorage.removeItem('user');
       }
-      setLoading(false);
-    };
+    }
+    setLoading(false);
+  }, []);
 
-    checkAuth();
-  }, [token]);
-
-  const login = async (email, password) => {
+  // API call for login
+  const loginUser = async (email, password) => {
     try {
       const response = await axios.post('/api/auth/login', {
         email,
         password
       });
-
-      const { token: newToken, user: userData } = response.data.data;
       
-      localStorage.setItem('token', newToken);
-      setToken(newToken);
-      setUser(userData);
-      
-      return { success: true };
+      if (response.data.success) {
+        const userData = response.data.user;
+        setUser(userData);
+        localStorage.setItem('user', JSON.stringify(userData));
+        return { success: true, user: userData };
+      } else {
+        return { success: false, error: response.data.error || 'Login failed' };
+      }
     } catch (error) {
-      const errorMessage = error.response?.data?.error || 'Login failed';
-      return { success: false, error: errorMessage };
+      console.error('Login error:', error);
+      return { 
+        success: false, 
+        error: error.response?.data?.error || 'Login failed. Please try again.' 
+      };
     }
   };
 
-  const register = async (name, email, password) => {
+  // API call for registration
+  const registerUser = async (firstName, lastName, username, email, password) => {
     try {
       const response = await axios.post('/api/auth/register', {
-        name,
+        firstName,
+        lastName,
+        username,
         email,
         password
       });
-
-      const { token: newToken, user: userData } = response.data.data;
       
-      localStorage.setItem('token', newToken);
-      setToken(newToken);
-      setUser(userData);
-      
-      return { success: true };
+      if (response.data.success) {
+        const userData = response.data.user;
+        setUser(userData);
+        localStorage.setItem('user', JSON.stringify(userData));
+        return { success: true, user: userData };
+      } else {
+        return { success: false, error: response.data.error || 'Registration failed' };
+      }
     } catch (error) {
-      const errorMessage = error.response?.data?.error || 'Registration failed';
-      return { success: false, error: errorMessage };
+      console.error('Registration error:', error);
+      return { 
+        success: false, 
+        error: error.response?.data?.error || 'Registration failed. Please try again.' 
+      };
     }
+  };
+
+  // Simple login for local state (keeping for backward compatibility)
+  const login = (userData) => {
+    setUser(userData);
+    localStorage.setItem('user', JSON.stringify(userData));
   };
 
   const logout = () => {
-    localStorage.removeItem('token');
-    setToken(null);
     setUser(null);
-    delete axios.defaults.headers.common['Authorization'];
-  };
-
-  const updateProfile = async (name) => {
-    try {
-      const response = await axios.put('/api/auth/profile', { name });
-      setUser(response.data.data.user);
-      return { success: true };
-    } catch (error) {
-      const errorMessage = error.response?.data?.error || 'Profile update failed';
-      return { success: false, error: errorMessage };
-    }
-  };
-
-  const deleteAccount = async () => {
-    try {
-      await axios.delete('/api/auth/account');
-      logout();
-      return { success: true };
-    } catch (error) {
-      const errorMessage = error.response?.data?.error || 'Account deletion failed';
-      return { success: false, error: errorMessage };
-    }
+    localStorage.removeItem('user');
   };
 
   const value = {
     user,
+    login,
+    loginUser,
+    registerUser,
+    logout,
     loading,
     isAuthenticated: !!user,
-    login,
-    register,
-    logout,
-    updateProfile,
-    deleteAccount
+    isAdmin: user?.role === 'admin'
   };
 
   return (

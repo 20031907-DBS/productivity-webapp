@@ -338,4 +338,77 @@
     transform: translateX(-100%);
     width: 280px;
   }
+}/* 
+User info section */
+.user-info-section {
+  margin-bottom: 1rem;
+}
+
+.user-card {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  background: linear-gradient(135deg, #e8f5e8 0%, #f0fff0 100%);
+  border-radius: 12px;
+  border: 2px solid #4caf50;
+}
+
+.user-avatar {
+  width: 40px;
+  height: 40px;
+  background: linear-gradient(135deg, #4caf50 0%, #45a049 100%);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: bold;
+  font-size: 0.9rem;
+  flex-shrink: 0;
+}
+
+.user-details h4 {
+  margin: 0 0 0.25rem 0;
+  color: #2e7d32;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.user-details p {
+  margin: 0 0 0.5rem 0;
+  color: #4caf50;
+  font-size: 0.85rem;
+  opacity: 0.8;
+}
+
+.role-badge {
+  padding: 0.2rem 0.6rem;
+  border-radius: 12px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.role-badge.admin {
+  background: #ffebee;
+  color: #c62828;
+}
+
+.role-badge.user {
+  background: #e3f2fd;
+  color: #1976d2;
+}
+
+/* Collapsed state adjustments */
+.sidebar.collapsed .user-card {
+  justify-content: center;
+  padding: 0.75rem;
+}
+
+.sidebar.collapsed .user-avatar {
+  width: 35px;
+  height: 35px;
+  font-size: 0.8rem;
 }

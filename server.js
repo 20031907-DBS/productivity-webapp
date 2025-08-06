@@ -3,19 +3,18 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
-const session = require('express-session');
-const passport = require('./config/passport');
+// Removed OAuth dependencies
 
 // Database connection
 const connectDB = require('./config/database');
 
 // Routes
-const authRoutes = require('./routes/auth');
 const analysisRoutes = require('./routes/analysis');
+const authRoutes = require('./routes/auth');
+const adminRoutes = require('./routes/admin');
 
 const YouTubeService = require('./services/YouTubeService');
 const AIAnalysisService = require('./services/AIAnalysisService');
-const ProgressLogger = require('./utils/ProgressLogger');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -37,20 +36,7 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
-// Session middleware for Passport
-app.use(session({
-  secret: process.env.JWT_SECRET || 'fallback-secret',
-  resave: false,
-  saveUninitialized: false,
-  cookie: {
-    secure: process.env.NODE_ENV === 'production',
-    maxAge: 24 * 60 * 60 * 1000 // 24 hours
-  }
-}));
-
-// Passport middleware
-app.use(passport.initialize());
-app.use(passport.session());
+// Removed OAuth session middleware
 
 // Rate limiting
 const limiter = rateLimit({
@@ -69,6 +55,7 @@ const analysisLimiter = rateLimit({
 
 // Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/admin', adminRoutes);
 app.use('/api/analysis', analysisRoutes);
 
 // Health check endpoint
@@ -117,36 +104,26 @@ app.post('/api/analyze', analysisLimiter, async (req, res) => {
       });
     }
 
-    // Initialize progress logger
-    const sessionId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    const logger = new ProgressLogger(sessionId);
-    
-    logger.logHeader(videoUrl, learningIntention);
+    console.log(`Starting analysis for video: ${videoUrl}`);
+    console.log(`Learning intention: "${learningIntention}"`);
 
     // Step 1: Validate and extract video ID
-    logger.logStep('Validating YouTube URL', 'start');
     const videoId = youtubeService.extractVideoId(videoUrl);
     if (!videoId) {
-      logger.logError(new Error('Invalid YouTube URL format'), 'URL Validation');
       return res.status(400).json({
         error: 'Invalid YouTube URL format',
         code: 'INVALID_YOUTUBE_URL'
       });
     }
-    logger.logStep('URL Validation', 'success', `Video ID: ${videoId}`);
 
-    // Step 2: Extract transcript
+    // Step 2: Extract transcript using local AI
     let transcript;
     try {
-      logger.logStep('Extracting video transcript', 'start', 'Connecting to YouTube API...');
-      logger.logProgress('Initializing YouTube client');
-      
+      console.log('Extracting transcript using local transcription...');
       transcript = await youtubeService.extractTranscript(videoUrl);
-      
-      logger.logStep('Transcript Extraction', 'success', `${transcript.length} characters extracted`);
-      logger.logStep('Transcript Extraction', 'info', `First 100 chars: "${transcript.substring(0, 100)}..."`);
+      console.log(`Transcript extracted: ${transcript.length} characters`);
     } catch (error) {
-      logger.logError(error, 'Transcript Extraction');
+      console.error('Transcript extraction failed:', error.message);
       return res.status(422).json({
         error: error.message,
         code: 'TRANSCRIPT_EXTRACTION_FAILED'
@@ -156,15 +133,15 @@ app.post('/api/analyze', analysisLimiter, async (req, res) => {
     // Step 3: Get video metadata
     let videoMetadata;
     try {
-      logger.logStep('Fetching video metadata', 'start');
+      console.log('Fetching video metadata...');
       videoMetadata = await youtubeService.getVideoMetadata(videoUrl);
-      logger.logStep('Metadata Extraction', 'success', `Title: ${videoMetadata.title || 'N/A'}`);
+      console.log(`Metadata extracted: ${videoMetadata.title || 'N/A'}`);
     } catch (error) {
-      logger.logStep('Metadata Extraction', 'error', error.message);
-      logger.logStep('Metadata Extraction', 'info', 'Using fallback metadata');
+      console.error('Metadata extraction failed:', error.message);
       videoMetadata = {
         videoId: videoId,
         url: videoUrl,
+        title: 'Video Title Not Available',
         extractedAt: new Date().toISOString()
       };
     }
@@ -172,28 +149,11 @@ app.post('/api/analyze', analysisLimiter, async (req, res) => {
     // Step 4: Perform AI analysis
     let analysisResults;
     try {
-      logger.logStep('AI Analysis', 'start', 'Sending to Ollama for processing...');
-      logger.logProgress('Preparing transcript for AI analysis');
-      
-      // Show progress during AI analysis
-      const analysisPromise = aiAnalysisService.analyzeContent(transcript, learningIntention);
-      
-      // Simulate progress updates (since we can't get real progress from Ollama)
-      const progressInterval = setInterval(() => {
-        const elapsed = Date.now() - startTime;
-        if (elapsed < 5000) {
-          logger.logProgress('AI model processing content...', Math.min(20 + (elapsed / 250), 80));
-        }
-      }, 1000);
-      
-      analysisResults = await analysisPromise;
-      clearInterval(progressInterval);
-      
-      logger.logStep('AI Analysis', 'success', `Match score: ${analysisResults.matchScore}%`);
-      logger.logStep('AI Analysis', 'info', `Generated ${analysisResults.keyPoints?.length || 0} key points`);
-      logger.logStep('AI Analysis', 'info', `Generated ${analysisResults.insights?.length || 0} insights`);
+      console.log('Starting AI analysis...');
+      analysisResults = await aiAnalysisService.analyzeContent(transcript, learningIntention);
+      console.log(`Analysis completed: ${analysisResults.matchScore}% match score`);
     } catch (error) {
-      logger.logError(error, 'AI Analysis');
+      console.error('AI analysis failed:', error.message);
       return res.status(503).json({
         error: error.message,
         code: 'AI_ANALYSIS_FAILED'
@@ -230,18 +190,12 @@ app.post('/api/analyze', analysisLimiter, async (req, res) => {
       }
     };
 
-    // Log final results
-    logger.logResults(response.data);
+    console.log(`Analysis completed successfully in ${processingTime}ms`);
     
     res.json(response);
 
   } catch (error) {
-    // Log error with progress logger if available
-    if (typeof logger !== 'undefined') {
-      logger.logError(error, 'Unexpected Error');
-    } else {
-      console.error('Unexpected error during analysis:', error);
-    }
+    console.error('Unexpected error during analysis:', error);
     
     const processingTime = Date.now() - startTime;
     
@@ -280,10 +234,9 @@ app.use('*', (req, res) => {
 app.listen(PORT, () => {
   console.log(`YouTube Learning Analyzer API running on port ${PORT}`);
   console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`Mock AI Analysis: ${process.env.MOCK_AI_ANALYSIS === 'true' ? 'Enabled' : 'Disabled'}`);
+  console.log(`Local AI Models: Whisper (${process.env.WHISPER_MODEL || 'base'}) + Qwen3 (${process.env.OLLAMA_MODEL || 'qwen3:8b'})`);
   console.log(`Health check: http://localhost:${PORT}/health`);
-  console.log(`Analysis endpoint: http://localhost:${PORT}/api/analysis/analyze`);
-  console.log(`Auth endpoints: http://localhost:${PORT}/api/auth/*`);
+  console.log(`Analysis endpoint: http://localhost:${PORT}/api/analyze`);
   console.log(`Analysis history: http://localhost:${PORT}/api/analysis/history`);
 });
 

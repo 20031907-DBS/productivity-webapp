@@ -12,7 +12,7 @@ class AudioTranscriptionService {
   constructor() {
     this.tempDir = path.join(__dirname, '../temp');
     this.ensureTempDir();
-    
+
     // Faster-whisper model options
     this.modelSize = process.env.WHISPER_MODEL || 'base'; // tiny, base, small, medium, large-v2, large-v3
     this.device = process.env.WHISPER_DEVICE || 'cpu'; // cpu, cuda
@@ -34,28 +34,28 @@ class AudioTranscriptionService {
 
     try {
       console.log(`Starting transcription for video: ${videoUrl}`);
-      
+
       // Step 1: Download audio
       audioPath = await this.downloadAudio(videoUrl);
       console.log(`Audio downloaded successfully`);
-      
+
       // Step 2: Convert to WAV format (faster-whisper works best with WAV)
       wavPath = await this.convertToWav(audioPath);
       console.log(`Audio converted to WAV format`);
-      
+
       // Step 3: Transcribe with faster-whisper
       const transcription = await this.transcribeWithFasterWhisper(wavPath);
       console.log(`Transcription completed successfully`);
-      
+
       return transcription;
-      
+
     } catch (error) {
       console.error('Transcription failed:', error.message);
       throw new Error(`Transcription failed: ${error.message}`);
     } finally {
       // Cleanup temp files
-      if (audioPath) await fs.remove(audioPath).catch(() => {});
-      if (wavPath) await fs.remove(wavPath).catch(() => {});
+      if (audioPath) await fs.remove(audioPath).catch(() => { });
+      if (wavPath) await fs.remove(wavPath).catch(() => { });
     }
   }
 
@@ -68,14 +68,14 @@ class AudioTranscriptionService {
     return new Promise((resolve, reject) => {
       const videoId = ytdl.getVideoID(videoUrl);
       const audioPath = path.join(this.tempDir, `${videoId}.webm`);
-      
+
       const stream = ytdl(videoUrl, {
         quality: 'highestaudio',
         filter: 'audioonly',
       });
 
       stream.pipe(fs.createWriteStream(audioPath));
-      
+
       stream.on('end', () => resolve(audioPath));
       stream.on('error', reject);
     });
@@ -89,7 +89,7 @@ class AudioTranscriptionService {
   async convertToWav(inputPath) {
     return new Promise((resolve, reject) => {
       const outputPath = inputPath.replace(path.extname(inputPath), '.wav');
-      
+
       ffmpeg(inputPath)
         .toFormat('wav')
         .audioFrequency(16000) // 16kHz is optimal for Whisper
@@ -110,11 +110,11 @@ class AudioTranscriptionService {
       // Create Python script for faster-whisper
       const pythonScript = this.generatePythonScript(audioPath);
       const scriptPath = path.join(this.tempDir, 'transcribe.py');
-      
+
       fs.writeFileSync(scriptPath, pythonScript);
-      
+
       console.log(`Running faster-whisper with model: ${this.modelSize}`);
-      
+
       const pythonProcess = spawn('python', [scriptPath], {
         stdio: ['pipe', 'pipe', 'pipe']
       });
@@ -132,8 +132,8 @@ class AudioTranscriptionService {
 
       pythonProcess.on('close', (code) => {
         // Cleanup Python script
-        fs.remove(scriptPath).catch(() => {});
-        
+        fs.remove(scriptPath).catch(() => { });
+
         if (code !== 0) {
           reject(new Error(`Python process failed: ${stderr}`));
           return;
@@ -210,7 +210,7 @@ except Exception as e:
    */
   formatTranscription(rawResult) {
     const segments = rawResult.segments || [];
-    
+
     // Create full transcript with timestamps
     const transcript = segments.map(segment => {
       const startTime = this.formatTimestamp(segment.start);
@@ -255,19 +255,19 @@ except Exception as e:
    */
   async transcribeLocalFile(audioPath) {
     let wavPath = null;
-    
+
     try {
       // Convert to WAV if needed
       if (!audioPath.endsWith('.wav')) {
         wavPath = await this.convertToWav(audioPath);
         audioPath = wavPath;
       }
-      
+
       const transcription = await this.transcribeWithFasterWhisper(audioPath);
       return transcription;
-      
+
     } finally {
-      if (wavPath) await fs.remove(wavPath).catch(() => {});
+      if (wavPath) await fs.remove(wavPath).catch(() => { });
     }
   }
 

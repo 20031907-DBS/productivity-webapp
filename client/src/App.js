@@ -1,41 +1,23 @@
-import React, { useState } from 'react';
-import { AuthProvider, useAuth } from './contexts/AuthContext';
-import LoginPage from './pages/LoginPage';
+import React from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider } from './contexts/AuthContext';
 import Dashboard from './pages/Dashboard';
+import AdminPanel from './pages/AdminPanel';
 import './App.css';
-
-const AppContent = () => {
-  const [guestMode, setGuestMode] = useState(false);
-  const { isAuthenticated, loading: authLoading } = useAuth();
-
-  const handleTryFree = () => {
-    setGuestMode(true);
-  };
-
-  if (authLoading) {
-    return (
-      <div className="App">
-        <div className="loading-screen">
-          <h2>Loading...</h2>
-        </div>
-      </div>
-    );
-  }
-
-  // Show login page if not authenticated and not in guest mode
-  if (!isAuthenticated && !guestMode) {
-    return <LoginPage onTryFree={handleTryFree} />;
-  }
-
-  // Show dashboard for authenticated users or guest mode
-  return <Dashboard isGuestMode={guestMode} />;
-};
 
 function App() {
   return (
-    <AuthProvider>
-      <AppContent />
-    </AuthProvider>
+    <div className="App">
+      <AuthProvider>
+        <Router>
+          <Routes>
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/dashboard/*" element={<Dashboard />} />
+            <Route path="/admin-panel" element={<AdminPanel />} />
+          </Routes>
+        </Router>
+      </AuthProvider>
+    </div>
   );
 }
 

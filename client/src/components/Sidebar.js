@@ -1,66 +1,34 @@
-import React, { useState } from 'react';
+import React from 'react';
 import './Sidebar.css';
 
-const Sidebar = ({ 
-  currentView, 
-  onViewChange, 
-  collapsed, 
-  onToggleCollapse, 
-  user, 
-  isGuestMode, 
-  onLogout 
+const Sidebar = ({
+  currentView,
+  onViewChange,
+  collapsed,
+  onToggleCollapse,
+  user,
+  isAdmin
 }) => {
-  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
-
   const menuItems = [
     {
       id: 'analyzer',
       icon: '🎯',
       label: 'Video Analyzer',
-      description: 'Analyze YouTube videos'
-    },
-    {
-      id: 'history',
-      icon: '📊',
-      label: 'Analysis History',
-      description: 'View past analyses',
-      requiresAuth: true
-    },
-    {
-      id: 'stats',
-      icon: '📈',
-      label: 'Statistics',
-      description: 'Learning insights',
-      requiresAuth: true
-    },
-    {
-      id: 'profile',
-      icon: '👤',
-      label: 'Profile',
-      description: 'Manage your account',
-      requiresAuth: true
-    },
-    {
-      id: 'settings',
-      icon: '⚙️',
-      label: 'Settings',
-      description: 'App preferences',
-      requiresAuth: true
+      description: 'Analyze YouTube videos with local AI'
     }
   ];
 
-  const handleLogout = () => {
-    setShowLogoutConfirm(true);
-  };
+  // Add admin menu item if user is admin
+  if (isAdmin) {
+    menuItems.push({
+      id: 'admin',
+      icon: '👑',
+      label: 'Admin Panel',
+      description: 'Manage users and system settings'
+    });
+  }
 
-  const confirmLogout = () => {
-    onLogout();
-    setShowLogoutConfirm(false);
-  };
 
-  const cancelLogout = () => {
-    setShowLogoutConfirm(false);
-  };
 
   return (
     <>
@@ -70,8 +38,8 @@ const Sidebar = ({
             <span className="logo-icon">🎯</span>
             {!collapsed && (
               <div className="logo-text">
-                <h3>YouTube Analyzer</h3>
-                <p>AI-Powered Learning</p>
+                <h3>Local AI Analyzer</h3>
+                <p>Privacy-First Learning</p>
               </div>
             )}
           </div>
@@ -83,11 +51,8 @@ const Sidebar = ({
               {menuItems.map((item) => (
                 <li key={item.id} className="nav-item">
                   <button
-                    className={`nav-link ${currentView === item.id ? 'active' : ''} ${
-                      item.requiresAuth && isGuestMode ? 'disabled' : ''
-                    }`}
-                    onClick={() => !item.requiresAuth || !isGuestMode ? onViewChange(item.id) : null}
-                    disabled={item.requiresAuth && isGuestMode}
+                    className={`nav-link ${currentView === item.id ? 'active' : ''}`}
+                    onClick={() => onViewChange(item.id)}
                     title={collapsed ? item.label : item.description}
                   >
                     <span className="nav-icon">{item.icon}</span>
@@ -97,64 +62,49 @@ const Sidebar = ({
                         <span className="nav-description">{item.description}</span>
                       </div>
                     )}
-                    {item.requiresAuth && isGuestMode && !collapsed && (
-                      <span className="lock-icon">🔒</span>
-                    )}
                   </button>
                 </li>
               ))}
             </ul>
           </nav>
 
-          {!isGuestMode && user && (
-            <div className="user-section">
+          {user && (
+            <div className="user-info-section">
               <div className="user-card">
                 <div className="user-avatar">
-                  {user.name.charAt(0).toUpperCase()}
+                  {user.firstName.charAt(0)}{user.lastName.charAt(0)}
                 </div>
                 {!collapsed && (
                   <div className="user-details">
-                    <h4 className="user-name">{user.name}</h4>
-                    <p className="user-email">{user.email}</p>
-                    <div className="user-stats">
-                      <span className="stat-item">
-                        📊 {user.analysisCount || 0} analyses
-                      </span>
-                    </div>
+                    <h4>{user.firstName} {user.lastName}</h4>
+                    <p>@{user.username}</p>
+                    <span className={`role-badge ${user.role}`}>
+                      {user.role}
+                    </span>
                   </div>
                 )}
               </div>
             </div>
           )}
 
-          {isGuestMode && (
-            <div className="guest-section">
-              <div className="guest-card">
-                <div className="guest-icon">🚀</div>
-                {!collapsed && (
-                  <div className="guest-info">
-                    <h4>Guest Mode</h4>
-                    <p>Sign up to unlock all features</p>
+          <div className="ai-info-section">
+            <div className="ai-card">
+              <div className="ai-icon">🤖</div>
+              {!collapsed && (
+                <div className="ai-info">
+                  <h4>Local AI Powered</h4>
+                  <p>Whisper + Qwen3 running locally</p>
+                  <div className="ai-stats">
+                    <span className="stat-item">🔒 Privacy First</span>
                   </div>
-                )}
-              </div>
+                </div>
+              )}
             </div>
-          )}
+          </div>
         </div>
 
         <div className="sidebar-footer">
-          {!isGuestMode && (
-            <button 
-              className="logout-btn"
-              onClick={handleLogout}
-              title={collapsed ? 'Logout' : 'Sign out of your account'}
-            >
-              <span className="logout-icon">🚪</span>
-              {!collapsed && <span>Logout</span>}
-            </button>
-          )}
-          
-          <button 
+          <button
             className="collapse-btn"
             onClick={onToggleCollapse}
             title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
@@ -165,23 +115,6 @@ const Sidebar = ({
           </button>
         </div>
       </div>
-
-      {showLogoutConfirm && (
-        <div className="logout-modal">
-          <div className="logout-modal-content">
-            <h3>Confirm Logout</h3>
-            <p>Are you sure you want to sign out?</p>
-            <div className="logout-modal-actions">
-              <button className="cancel-btn" onClick={cancelLogout}>
-                Cancel
-              </button>
-              <button className="confirm-btn" onClick={confirmLogout}>
-                Logout
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </>
   );
 };

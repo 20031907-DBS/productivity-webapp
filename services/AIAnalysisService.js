@@ -85,7 +85,7 @@ class AIAnalysisService {
         options: {
           temperature: 0.1, // Very low temperature for consistent JSON formatting
           top_p: 0.8,
-          num_predict: 400 // Reduced for faster response
+          num_predict: 1000 // Increased for detailed timestamps
         }
       });
       console.log('Analysis request sent, waiting for response...');
@@ -157,14 +157,49 @@ class AIAnalysisService {
 Learning Goal: "${learningIntention}"
 Video Content: "${truncatedTranscript}"
 
+IMPORTANT: Analyze the transcript carefully and provide detailed timestamps showing:
+1. EXACTLY what is being taught at each time marker
+2. HOW each section relates to the learning goal "${learningIntention}"
+3. SPECIFIC skills or knowledge gained from each timestamp
+4. WHETHER each section should be watched, skipped, or is optional
+
 {
   "matchScore": [number 0-100],
   "recommendation": "RECOMMENDED or NOT_RECOMMENDED", 
-  "keyPoints": ["point 1", "point 2", "point 3"],
-  "reasoning": "brief explanation why this video matches or doesn't match the learning goal"
+  "keyPoints": ["specific topic 1 covered", "specific topic 2 covered", "specific topic 3 covered"],
+  "reasoning": "detailed explanation of match/mismatch with learning goal",
+  "actualTopics": ["main topic 1", "main topic 2", "main topic 3"],
+  "skillLevel": "BEGINNER or INTERMEDIATE or ADVANCED",
+  "timeToComplete": "estimated viewing time in minutes",
+  "alternativeLearning": "what you can actually learn from this video instead",
+  "relatedSkills": ["skill 1", "skill 2", "skill 3"],
+  "prerequisites": "what knowledge is needed to understand this video",
+  "nextSteps": "what to learn after watching this video",
+  "timestamps": [
+    {
+      "time": "0:30", 
+      "topic": "specific concept being taught",
+      "description": "detailed explanation of what is being taught at this moment",
+      "relevance": "HIGH or MEDIUM or LOW",
+      "learningValue": "what you will learn from this section",
+      "connectionToGoal": "how this specific content relates to your learning intention",
+      "actionable": "specific skill or knowledge you can apply",
+      "skipRecommendation": "MUST_WATCH or RECOMMENDED or OPTIONAL or SKIP"
+    },
+    {
+      "time": "2:15",
+      "topic": "next specific concept",
+      "description": "what is being explained here",
+      "relevance": "HIGH or MEDIUM or LOW", 
+      "learningValue": "concrete learning outcome",
+      "connectionToGoal": "direct connection to your learning goal",
+      "actionable": "what you can do with this knowledge",
+      "skipRecommendation": "MUST_WATCH or RECOMMENDED or OPTIONAL or SKIP"
+    }
+  ]
 }
 
-Respond with ONLY the JSON object, no other text.`;
+CRITICAL: Respond with ONLY the complete JSON object. No thinking tags, no explanations, no additional text. Start with { and end with }. Ensure all arrays and objects are properly closed.`;
   }
 
   /**
@@ -264,13 +299,26 @@ IMPORTANT: Return ONLY the JSON object. No additional text, explanations, or for
       // Remove thinking tags if present
       cleanedText = cleanedText.replace(/<think>[\s\S]*?<\/think>/g, '');
 
-      // Try to find JSON object
+      // Try to find JSON object with multiple patterns
       let jsonMatch = cleanedText.match(/\{[\s\S]*\}/);
       if (!jsonMatch) {
         // Try alternative patterns
         jsonMatch = cleanedText.match(/```json\s*(\{[\s\S]*?\})\s*```/);
         if (jsonMatch) {
           jsonMatch[0] = jsonMatch[1];
+        }
+      }
+      
+      // If still no match, try to extract from incomplete JSON
+      if (!jsonMatch) {
+        const startBrace = cleanedText.indexOf('{');
+        if (startBrace >= 0) {
+          let jsonText = cleanedText.substring(startBrace);
+          console.log('Extracted incomplete JSON, length:', jsonText.length);
+          // Try to complete incomplete JSON
+          jsonText = this.completeIncompleteJson(jsonText);
+          jsonMatch = [jsonText];
+          console.log('Completed JSON, new length:', jsonText.length);
         }
       }
 
@@ -297,18 +345,31 @@ IMPORTANT: Return ONLY the JSON object. No additional text, explanations, or for
         console.log('JSON parsing failed:', parseError.message);
         console.log('Attempting to fix JSON structure...');
 
-        // Try to fix incomplete JSON by adding missing closing braces
-        const openBraces = (jsonText.match(/\{/g) || []).length;
-        const closeBraces = (jsonText.match(/\}/g) || []).length;
-        if (openBraces > closeBraces) {
-          jsonText += '}'.repeat(openBraces - closeBraces);
-        }
+        // Handle specific case of incomplete timestamp array
+        if (jsonText.includes('"timestamps":[') && jsonText.includes('"description":')) {
+          console.log('Detected incomplete timestamps array, attempting smart completion...');
+          
+          // Find the last complete timestamp object
+          const lastCompleteMatch = jsonText.lastIndexOf('"}');
+          if (lastCompleteMatch > 0) {
+            // Truncate after the last complete timestamp and close properly
+            jsonText = jsonText.substring(0, lastCompleteMatch + 2) + ']}';
+            console.log('Smart completion: truncated to last complete timestamp');
+          }
+        } else {
+          // Try to fix incomplete JSON by adding missing closing braces
+          const openBraces = (jsonText.match(/\{/g) || []).length;
+          const closeBraces = (jsonText.match(/\}/g) || []).length;
+          if (openBraces > closeBraces) {
+            jsonText += '}'.repeat(openBraces - closeBraces);
+          }
 
-        // Try to fix incomplete arrays
-        const openBrackets = (jsonText.match(/\[/g) || []).length;
-        const closeBrackets = (jsonText.match(/\]/g) || []).length;
-        if (openBrackets > closeBrackets) {
-          jsonText += ']'.repeat(openBrackets - closeBrackets);
+          // Try to fix incomplete arrays
+          const openBrackets = (jsonText.match(/\[/g) || []).length;
+          const closeBrackets = (jsonText.match(/\]/g) || []).length;
+          if (openBrackets > closeBrackets) {
+            jsonText += ']'.repeat(openBrackets - closeBrackets);
+          }
         }
 
         // Try parsing again
@@ -326,34 +387,46 @@ IMPORTANT: Return ONLY the JSON object. No additional text, explanations, or for
         matchScore: Math.max(0, Math.min(100, parseInt(analysisData.matchScore) || 0)),
         recommendation: this.normalizeRecommendation(analysisData.recommendation),
         keyPoints: Array.isArray(analysisData.keyPoints) ? analysisData.keyPoints.slice(0, 6) : [],
-        insights: Array.isArray(analysisData.insights) ? analysisData.insights.slice(0, 6) : [],
         reasoning: analysisData.reasoning || 'Analysis completed',
-        relevantTimestamps: Array.isArray(analysisData.relevantTimestamps) ?
-          analysisData.relevantTimestamps.slice(0, 5).map(ts => ({
-            ...ts,
-            keyTakeaways: ts.keyTakeaways || 'Key learning points from this section',
-            practicalApplication: ts.practicalApplication || 'Practical application of concepts covered'
+        
+        // Enhanced analytics fields
+        actualTopics: Array.isArray(analysisData.actualTopics) ? analysisData.actualTopics.slice(0, 5) : [],
+        skillLevel: this.normalizeSkillLevel(analysisData.skillLevel),
+        timeToComplete: analysisData.timeToComplete || 'Time estimate not available',
+        alternativeLearning: analysisData.alternativeLearning || 'Alternative learning opportunities not identified',
+        relatedSkills: Array.isArray(analysisData.relatedSkills) ? analysisData.relatedSkills.slice(0, 5) : [],
+        prerequisites: analysisData.prerequisites || 'No specific prerequisites identified',
+        nextSteps: analysisData.nextSteps || 'Next learning steps not specified',
+        
+        // Enhanced timestamps with detailed analysis
+        timestamps: Array.isArray(analysisData.timestamps) ?
+          analysisData.timestamps.slice(0, 10).map(ts => ({
+            time: ts.time || '0:00',
+            topic: ts.topic || 'Topic not specified',
+            description: ts.description || 'Content description not available',
+            relevance: this.normalizeRelevance(ts.relevance),
+            learningValue: ts.learningValue || 'Learning value not specified',
+            connectionToGoal: ts.connectionToGoal || 'Connection to goal not specified',
+            actionable: ts.actionable || 'Actionable insight not available',
+            skipRecommendation: this.normalizeSkipRecommendation(ts.skipRecommendation)
           })) : [],
-        timeEfficiencyTips: Array.isArray(analysisData.timeEfficiencyTips) ?
-          analysisData.timeEfficiencyTips.slice(0, 5) : [],
-        prerequisiteCheck: analysisData.prerequisiteCheck || 'No specific prerequisites identified',
-        difficultyLevel: this.normalizeDifficultyLevel(analysisData.difficultyLevel),
-        estimatedLearningTime: analysisData.estimatedLearningTime || 'Time estimate not available',
-        learningPath: {
-          beforeWatching: analysisData.learningPath?.beforeWatching || 'No specific preparation needed',
-          duringWatching: analysisData.learningPath?.duringWatching || 'Take notes and pause for reflection',
-          afterWatching: analysisData.learningPath?.afterWatching || 'Practice the concepts learned'
-        },
-        contentQuality: {
-          teachingClarity: analysisData.contentQuality?.teachingClarity || 'Teaching clarity assessment not available',
-          practicalExamples: analysisData.contentQuality?.practicalExamples || 'Practical examples assessment not available',
-          comprehensiveness: analysisData.contentQuality?.comprehensiveness || 'Comprehensiveness assessment not available'
-        },
+        
+        // Legacy fields for backward compatibility
+        insights: this.generateInsights(analysisData),
+        relevantTimestamps: Array.isArray(analysisData.timestamps) ?
+          analysisData.timestamps.filter(ts => ts.relevance === 'HIGH').slice(0, 3) : [],
+        difficultyLevel: this.normalizeSkillLevel(analysisData.skillLevel),
+        estimatedLearningTime: analysisData.timeToComplete || 'Time estimate not available',
+        
         generatedAt: new Date().toISOString()
       };
     } catch (error) {
       console.error('JSON parsing failed:', error.message);
-      console.error('Problematic JSON text:', jsonText?.substring(0, 200) + '...');
+      if (typeof jsonText !== 'undefined') {
+        console.error('Problematic JSON text:', jsonText.substring(0, 200) + '...');
+      } else {
+        console.error('jsonText is undefined - no JSON was extracted');
+      }
       console.error('Full AI response:', analysisText.substring(0, 500) + '...');
       // Fallback parsing if JSON parsing fails
       return this.fallbackAnalysis(analysisText);
@@ -402,6 +475,68 @@ IMPORTANT: Return ONLY the JSON object. No additional text, explanations, or for
     const validLevels = ['BEGINNER', 'INTERMEDIATE', 'ADVANCED'];
     const normalized = difficulty?.toUpperCase();
     return validLevels.includes(normalized) ? normalized : 'INTERMEDIATE';
+  }
+
+  /**
+   * Normalizes skill level values (alias for difficulty level)
+   * @param {string} skillLevel - Raw skill level
+   * @returns {string} - Normalized skill level
+   */
+  normalizeSkillLevel(skillLevel) {
+    return this.normalizeDifficultyLevel(skillLevel);
+  }
+
+  /**
+   * Normalizes relevance values for timestamps
+   * @param {string} relevance - Raw relevance level
+   * @returns {string} - Normalized relevance level
+   */
+  normalizeRelevance(relevance) {
+    const validLevels = ['HIGH', 'MEDIUM', 'LOW'];
+    const normalized = relevance?.toUpperCase();
+    return validLevels.includes(normalized) ? normalized : 'MEDIUM';
+  }
+
+  /**
+   * Normalizes skip recommendation values
+   * @param {string} skipRec - Raw skip recommendation
+   * @returns {string} - Normalized skip recommendation
+   */
+  normalizeSkipRecommendation(skipRec) {
+    const validRecs = ['MUST_WATCH', 'RECOMMENDED', 'OPTIONAL', 'SKIP'];
+    const normalized = skipRec?.toUpperCase();
+    return validRecs.includes(normalized) ? normalized : 'RECOMMENDED';
+  }
+
+  /**
+   * Generates insights from analysis data
+   * @param {object} analysisData - Raw analysis data
+   * @returns {array} - Generated insights
+   */
+  generateInsights(analysisData) {
+    const insights = [];
+    
+    if (analysisData.alternativeLearning) {
+      insights.push(`Alternative learning opportunity: ${analysisData.alternativeLearning}`);
+    }
+    
+    if (analysisData.actualTopics && Array.isArray(analysisData.actualTopics)) {
+      insights.push(`Main topics covered: ${analysisData.actualTopics.join(', ')}`);
+    }
+    
+    if (analysisData.relatedSkills && Array.isArray(analysisData.relatedSkills)) {
+      insights.push(`Related skills you can develop: ${analysisData.relatedSkills.join(', ')}`);
+    }
+    
+    if (analysisData.nextSteps) {
+      insights.push(`Recommended next steps: ${analysisData.nextSteps}`);
+    }
+    
+    if (analysisData.prerequisites) {
+      insights.push(`Prerequisites needed: ${analysisData.prerequisites}`);
+    }
+    
+    return insights.slice(0, 5); // Limit to 5 insights
   }
 
   /**
@@ -495,23 +630,24 @@ Transcript: "${transcript.substring(0, 2000)}"
           matchScore: Math.max(0, Math.min(100, parseInt(data.matchScore) || 50)),
           recommendation: data.recommendation === 'RECOMMENDED' ? 'RECOMMENDED' : 'NOT_RECOMMENDED',
           keyPoints: Array.isArray(data.keyPoints) ? data.keyPoints.slice(0, 3) : ['Analysis completed'],
-          insights: ['Simplified analysis due to parsing issues'],
           reasoning: data.reasoning || 'Basic relevance analysis completed',
+          
+          // Enhanced analytics with fallback values
+          actualTopics: Array.isArray(data.actualTopics) ? data.actualTopics : ['Topics not identified'],
+          skillLevel: data.skillLevel || 'INTERMEDIATE',
+          timeToComplete: data.timeToComplete || 'Time estimate not available',
+          alternativeLearning: data.alternativeLearning || 'Alternative learning opportunities not identified',
+          relatedSkills: Array.isArray(data.relatedSkills) ? data.relatedSkills : ['Skills assessment not available'],
+          prerequisites: data.prerequisites || 'Prerequisites not specified',
+          nextSteps: data.nextSteps || 'Next steps not specified',
+          timestamps: Array.isArray(data.timestamps) ? data.timestamps : [],
+          
+          // Legacy fields for backward compatibility
+          insights: this.generateInsights(data),
           relevantTimestamps: [],
-          timeEfficiencyTips: ['Review video manually for detailed insights'],
-          prerequisiteCheck: 'Not available in simplified mode',
-          difficultyLevel: 'INTERMEDIATE',
-          estimatedLearningTime: 'Manual review recommended',
-          learningPath: {
-            beforeWatching: 'Prepare for focused viewing',
-            duringWatching: 'Take notes on relevant sections',
-            afterWatching: 'Review and practice key concepts'
-          },
-          contentQuality: {
-            teachingClarity: 'Assessment not available',
-            practicalExamples: 'Assessment not available',
-            comprehensiveness: 'Assessment not available'
-          },
+          difficultyLevel: data.skillLevel || 'INTERMEDIATE',
+          estimatedLearningTime: data.timeToComplete || 'Manual review recommended',
+          
           generatedAt: new Date().toISOString()
         };
       }
@@ -521,6 +657,59 @@ Transcript: "${transcript.substring(0, 2000)}"
 
     // Ultimate fallback
     return this.fallbackAnalysis(aiResponse);
+  }
+
+  /**
+   * Completes incomplete JSON by adding missing closing brackets and braces
+   * @param {string} jsonText - Incomplete JSON text
+   * @returns {string} - Completed JSON text
+   */
+  completeIncompleteJson(jsonText) {
+    console.log('Attempting to complete incomplete JSON...');
+    let completed = jsonText.trim();
+    
+    // Handle the specific case where response is cut off mid-sentence
+    // Look for incomplete strings and truncate to last complete element
+    if (completed.includes('"description":') && !completed.endsWith('}')) {
+      console.log('Detected incomplete timestamp object, attempting to fix...');
+      
+      // Find the last complete timestamp object
+      const timestampMatches = [...completed.matchAll(/\{"time":[^}]+\}/g)];
+      if (timestampMatches.length > 0) {
+        const lastCompleteTimestamp = timestampMatches[timestampMatches.length - 1];
+        const endIndex = lastCompleteTimestamp.index + lastCompleteTimestamp[0].length;
+        
+        // Truncate to last complete timestamp and close the array
+        completed = completed.substring(0, endIndex) + ']}';
+        console.log('Truncated to last complete timestamp');
+      }
+    }
+    
+    // Count open and close brackets/braces
+    const openBraces = (completed.match(/\{/g) || []).length;
+    const closeBraces = (completed.match(/\}/g) || []).length;
+    const openBrackets = (completed.match(/\[/g) || []).length;
+    const closeBrackets = (completed.match(/\]/g) || []).length;
+    
+    console.log(`Braces: ${openBraces} open, ${closeBraces} close`);
+    console.log(`Brackets: ${openBrackets} open, ${closeBrackets} close`);
+    
+    // If we have an incomplete array, close it
+    if (openBrackets > closeBrackets) {
+      const missingBrackets = openBrackets - closeBrackets;
+      completed += ']'.repeat(missingBrackets);
+      console.log(`Added ${missingBrackets} closing brackets`);
+    }
+    
+    // Close any remaining open braces
+    if (openBraces > closeBraces) {
+      const missingBraces = openBraces - closeBraces;
+      completed += '}'.repeat(missingBraces);
+      console.log(`Added ${missingBraces} closing braces`);
+    }
+    
+    console.log('JSON completion attempted');
+    return completed;
   }
 
   /**

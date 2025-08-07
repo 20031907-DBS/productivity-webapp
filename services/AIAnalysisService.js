@@ -9,6 +9,40 @@ class AIAnalysisService {
   }
 
   /**
+   * Tests the connection to Ollama service
+   * @returns {Promise<boolean>} - True if connection works
+   */
+  async testConnection() {
+    try {
+      const host = process.env.OLLAMA_HOST || 'http://localhost:11434';
+      console.log(`Testing Ollama connection to: ${host}`);
+      console.log(`Using model: ${this.model}`);
+
+      const response = await this.ollama.chat({
+        model: this.model,
+        messages: [{
+          role: 'user',
+          content: 'respond with just "OK"'
+        }],
+        options: {
+          temperature: 0,
+          num_predict: 10
+        }
+      });
+      console.log('✅ Ollama connection test successful');
+      return true;
+    } catch (error) {
+      console.log('❌ Ollama connection test failed:', error.message);
+      console.log('🔧 Troubleshooting steps:');
+      console.log('   1. Check if Ollama is running: ollama serve');
+      console.log('   2. Verify model is installed: ollama list');
+      console.log('   3. Test API directly: curl http://localhost:11434/api/tags');
+      console.log(`   4. Check configured host: ${process.env.OLLAMA_HOST || 'http://localhost:11434'}`);
+      return false;
+    }
+  }
+
+  /**
    * Analyzes video transcript against learning intention using AI
    * @param {string} transcript - The video transcript
    * @param {string} learningIntention - User's learning intention
@@ -20,18 +54,26 @@ class AIAnalysisService {
         throw new Error('Both transcript and learning intention are required');
       }
 
-      const prompt = this.buildAnalysisPrompt(transcript, learningIntention);
+      // Use simplified prompt for faster processing
+      const prompt = this.buildSimpleAnalysisPrompt(transcript, learningIntention);
 
 
 
       // Log basic info for debugging
       console.log(`Using AI model: ${this.model} for transcript analysis`);
 
+      // Test connection first
+      const connectionOk = await this.testConnection();
+      if (!connectionOk) {
+        throw new Error('Cannot establish connection to Ollama service');
+      }
+
       // Add timeout to prevent hanging
       const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Analysis timeout after 8 minutes')), 480000); // 8 minutes
+        setTimeout(() => reject(new Error('Analysis timeout after 5 minutes')), 300000); // 5 minutes
       });
-      
+
+      console.log('Starting actual analysis request...');
       const analysisPromise = this.ollama.chat({
         model: this.model,
         messages: [
@@ -41,28 +83,88 @@ class AIAnalysisService {
           }
         ],
         options: {
-          temperature: 0.3, // Lower temperature for more consistent analysis
-          top_p: 0.9,
-          num_predict: 800 // Reduced response length for faster processing
+          temperature: 0.1, // Very low temperature for consistent JSON formatting
+          top_p: 0.8,
+          num_predict: 400 // Reduced for faster response
         }
       });
-      
-      const response = await Promise.race([analysisPromise, timeoutPromise]);
+      console.log('Analysis request sent, waiting for response...');
+
+      let response;
+      try {
+        response = await Promise.race([analysisPromise, timeoutPromise]);
+        console.log('✅ Analysis response received successfully');
+      } catch (raceError) {
+        console.log('❌ Analysis request failed:', raceError.message);
+        throw raceError;
+      }
 
       // Parse the response
-
       const analysisText = response.message.content;
-      return this.parseAnalysisResponse(analysisText);
+
+      // Log raw AI response for debugging
+      console.log('\n=== RAW AI RESPONSE START ===');
+      console.log('Response length:', analysisText.length);
+      console.log('Raw AI response:');
+      console.log(analysisText);
+      console.log('=== RAW AI RESPONSE END ===\n');
+
+      // Log character codes for first 100 characters to identify control characters
+      console.log('First 100 characters with codes:');
+      for (let i = 0; i < Math.min(100, analysisText.length); i++) {
+        const char = analysisText[i];
+        const code = char.charCodeAt(0);
+        if (code < 32 || code > 126) {
+          console.log(`Position ${i}: '${char}' (code: ${code})`);
+        }
+      }
+
+      try {
+        return this.parseAnalysisResponse(analysisText);
+      } catch (parseError) {
+        console.log('Complex analysis failed, trying simplified approach...');
+        console.log('Parse error details:', parseError.message);
+        return this.getSimplifiedAnalysis(transcript, learningIntention, analysisText);
+      }
 
     } catch (error) {
       if (error.message.includes('model not found')) {
         throw new Error(`AI model '${this.model}' not found. Please ensure Ollama is running and the model is installed.`);
-      } else if (error.message.includes('connection refused')) {
+      } else if (error.message.includes('connection refused') || error.message.includes('fetch failed')) {
         throw new Error('Cannot connect to Ollama service. Please ensure Ollama is running on the configured host.');
+      } else if (error.message.includes('timeout')) {
+        throw new Error('AI analysis timed out. The model may be overloaded or the content too complex.');
       } else {
         throw new Error(`AI analysis failed: ${error.message}`);
       }
     }
+  }
+
+  /**
+   * Builds a simplified analysis prompt for faster processing
+   * @param {string} transcript - The video transcript
+   * @param {string} learningIntention - User's learning intention
+   * @returns {string} - Formatted prompt
+   */
+  buildSimpleAnalysisPrompt(transcript, learningIntention) {
+    const maxTranscriptLength = 2000; // Shorter transcript
+    const truncatedTranscript = transcript.length > maxTranscriptLength
+      ? transcript.substring(0, maxTranscriptLength) + '...'
+      : transcript;
+
+    return `Analyze this video transcript and respond with ONLY this JSON format:
+
+Learning Goal: "${learningIntention}"
+Video Content: "${truncatedTranscript}"
+
+{
+  "matchScore": [number 0-100],
+  "recommendation": "RECOMMENDED or NOT_RECOMMENDED", 
+  "keyPoints": ["point 1", "point 2", "point 3"],
+  "reasoning": "brief explanation why this video matches or doesn't match the learning goal"
+}
+
+Respond with ONLY the JSON object, no other text.`;
   }
 
   /**
@@ -74,25 +176,24 @@ class AIAnalysisService {
   buildAnalysisPrompt(transcript, learningIntention) {
     // Increase transcript length for better analysis with improved chunking
     const maxTranscriptLength = 4000;
-    const truncatedTranscript = transcript.length > maxTranscriptLength 
+    const truncatedTranscript = transcript.length > maxTranscriptLength
       ? this.intelligentTruncate(transcript, maxTranscriptLength)
       : transcript;
-      
-    return `You are an expert learning advisor and video content analyzer with deep expertise in educational content assessment. Your task is to provide a comprehensive, actionable analysis of how well this video matches the user's specific learning intention.
 
-LEARNING INTENTION:
-"${learningIntention}"
+    return `You are an expert learning advisor and video content analyzer. Analyze how well this video matches the user's learning intention.
 
-VIDEO TRANSCRIPT:
-"${truncatedTranscript}"
+LEARNING INTENTION: "${learningIntention}"
 
-ANALYSIS FRAMEWORK:
-1. CONTENT RELEVANCE: How directly does the video content address the learning intention?
-2. LEARNING EFFICIENCY: Which parts provide maximum learning value vs time invested?
-3. SKILL PROGRESSION: What specific skills/knowledge will be gained and in what order?
-4. PRACTICAL APPLICATION: How can the learner immediately apply what they learn?
+VIDEO TRANSCRIPT: "${truncatedTranscript}"
 
-Respond in the following JSON format with detailed, specific analysis:
+CRITICAL INSTRUCTIONS:
+1. You must respond with ONLY valid JSON - no explanations, no thinking tags, no additional text
+2. Ensure all strings are properly quoted and escaped
+3. Do not use trailing commas in arrays or objects
+4. Complete all arrays and objects properly
+5. Use double quotes for all strings, not single quotes
+
+Respond with this exact JSON structure:
 
 {
   "matchScore": [number from 0-100 based on content alignment with learning intention],
@@ -147,16 +248,7 @@ Respond in the following JSON format with detailed, specific analysis:
   }
 }
 
-CRITICAL ANALYSIS STANDARDS:
-- Provide SPECIFIC timestamps with exact minute:second format when possible
-- Focus on MEASURABLE learning outcomes and actionable skills
-- Identify content that can be SKIPPED to optimize learning time
-- Match analysis precisely to the user's EXACT learning intention
-- Give concrete, specific insights with examples from the transcript
-- Assess both content quality and learning efficiency
-- Provide practical next steps and application guidance
-
-Respond only with the valid JSON object, no additional text or formatting.`;
+IMPORTANT: Return ONLY the JSON object. No additional text, explanations, or formatting.`;
   }
 
   /**
@@ -167,13 +259,67 @@ Respond only with the valid JSON object, no additional text or formatting.`;
   parseAnalysisResponse(analysisText) {
     try {
       // Clean the response and extract JSON
-      const cleanedText = analysisText.trim();
-      const jsonMatch = cleanedText.match(/\{[\s\S]*\}/);
+      let cleanedText = analysisText.trim();
+
+      // Remove thinking tags if present
+      cleanedText = cleanedText.replace(/<think>[\s\S]*?<\/think>/g, '');
+
+      // Try to find JSON object
+      let jsonMatch = cleanedText.match(/\{[\s\S]*\}/);
       if (!jsonMatch) {
+        // Try alternative patterns
+        jsonMatch = cleanedText.match(/```json\s*(\{[\s\S]*?\})\s*```/);
+        if (jsonMatch) {
+          jsonMatch[0] = jsonMatch[1];
+        }
+      }
+
+      if (!jsonMatch) {
+        console.log('No JSON match found in response');
+        console.log('Raw AI response (first 500 chars):', analysisText.substring(0, 500));
         throw new Error('No JSON found in AI response');
       }
 
-      const analysisData = JSON.parse(jsonMatch[0]);
+      console.log('JSON match found, length:', jsonMatch[0].length);
+      console.log('Extracted JSON (first 200 chars):', jsonMatch[0].substring(0, 200));
+
+      // Clean up common JSON issues before parsing
+      let jsonText = jsonMatch[0];
+      console.log('Before JSON cleanup (first 200 chars):', jsonText.substring(0, 200));
+
+      jsonText = this.fixCommonJsonIssues(jsonText);
+      console.log('After JSON cleanup (first 200 chars):', jsonText.substring(0, 200));
+
+      let analysisData;
+      try {
+        analysisData = JSON.parse(jsonText);
+      } catch (parseError) {
+        console.log('JSON parsing failed:', parseError.message);
+        console.log('Attempting to fix JSON structure...');
+
+        // Try to fix incomplete JSON by adding missing closing braces
+        const openBraces = (jsonText.match(/\{/g) || []).length;
+        const closeBraces = (jsonText.match(/\}/g) || []).length;
+        if (openBraces > closeBraces) {
+          jsonText += '}'.repeat(openBraces - closeBraces);
+        }
+
+        // Try to fix incomplete arrays
+        const openBrackets = (jsonText.match(/\[/g) || []).length;
+        const closeBrackets = (jsonText.match(/\]/g) || []).length;
+        if (openBrackets > closeBrackets) {
+          jsonText += ']'.repeat(openBrackets - closeBrackets);
+        }
+
+        // Try parsing again
+        try {
+          analysisData = JSON.parse(jsonText);
+        } catch (secondError) {
+          console.log('Second JSON parse attempt failed:', secondError.message);
+          console.log('Falling back to text analysis...');
+          throw new Error('Unable to parse JSON response');
+        }
+      }
 
       // Validate and normalize the response with enhanced structure
       return {
@@ -188,7 +334,7 @@ Respond only with the valid JSON object, no additional text or formatting.`;
             keyTakeaways: ts.keyTakeaways || 'Key learning points from this section',
             practicalApplication: ts.practicalApplication || 'Practical application of concepts covered'
           })) : [],
-        timeEfficiencyTips: Array.isArray(analysisData.timeEfficiencyTips) ? 
+        timeEfficiencyTips: Array.isArray(analysisData.timeEfficiencyTips) ?
           analysisData.timeEfficiencyTips.slice(0, 5) : [],
         prerequisiteCheck: analysisData.prerequisiteCheck || 'No specific prerequisites identified',
         difficultyLevel: this.normalizeDifficultyLevel(analysisData.difficultyLevel),
@@ -207,6 +353,8 @@ Respond only with the valid JSON object, no additional text or formatting.`;
       };
     } catch (error) {
       console.error('JSON parsing failed:', error.message);
+      console.error('Problematic JSON text:', jsonText?.substring(0, 200) + '...');
+      console.error('Full AI response:', analysisText.substring(0, 500) + '...');
       // Fallback parsing if JSON parsing fails
       return this.fallbackAnalysis(analysisText);
     }
@@ -220,17 +368,17 @@ Respond only with the valid JSON object, no additional text or formatting.`;
    */
   intelligentTruncate(transcript, maxLength) {
     if (transcript.length <= maxLength) return transcript;
-    
+
     // Try to find natural break points (sentences, paragraphs)
     const truncated = transcript.substring(0, maxLength);
     const lastSentence = truncated.lastIndexOf('.');
     const lastParagraph = truncated.lastIndexOf('\n');
-    
+
     const breakPoint = Math.max(lastSentence, lastParagraph);
     if (breakPoint > maxLength * 0.8) {
       return transcript.substring(0, breakPoint + 1) + '\n\n[Content truncated for analysis - full transcript analyzed for timestamps]';
     }
-    
+
     return truncated + '...[Content truncated for analysis]';
   }
 
@@ -301,6 +449,127 @@ Respond only with the valid JSON object, no additional text or formatting.`;
       },
       generatedAt: new Date().toISOString()
     };
+  }
+
+  /**
+   * Gets simplified analysis when complex JSON parsing fails
+   * @param {string} transcript - Video transcript
+   * @param {string} learningIntention - Learning intention
+   * @param {string} aiResponse - Raw AI response
+   * @returns {object} - Simplified analysis
+   */
+  async getSimplifiedAnalysis(transcript, learningIntention, aiResponse) {
+    try {
+      const simplePrompt = `Analyze this video transcript for learning relevance. Respond with ONLY a JSON object:
+
+Learning Goal: "${learningIntention}"
+Transcript: "${transcript.substring(0, 2000)}"
+
+{
+  "matchScore": [0-100 number],
+  "recommendation": "RECOMMENDED or NOT_RECOMMENDED",
+  "keyPoints": ["point 1", "point 2", "point 3"],
+  "reasoning": "brief explanation"
+}`;
+
+      const simpleResponse = await this.ollama.chat({
+        model: this.model,
+        messages: [
+          {
+            role: 'user',
+            content: simplePrompt
+          }
+        ],
+        options: {
+          temperature: 0.1,
+          num_predict: 300
+        }
+      });
+
+      const simpleJson = simpleResponse.message.content.trim();
+      const jsonMatch = simpleJson.match(/\{[\s\S]*\}/);
+
+      if (jsonMatch) {
+        const data = JSON.parse(jsonMatch[0]);
+        return {
+          matchScore: Math.max(0, Math.min(100, parseInt(data.matchScore) || 50)),
+          recommendation: data.recommendation === 'RECOMMENDED' ? 'RECOMMENDED' : 'NOT_RECOMMENDED',
+          keyPoints: Array.isArray(data.keyPoints) ? data.keyPoints.slice(0, 3) : ['Analysis completed'],
+          insights: ['Simplified analysis due to parsing issues'],
+          reasoning: data.reasoning || 'Basic relevance analysis completed',
+          relevantTimestamps: [],
+          timeEfficiencyTips: ['Review video manually for detailed insights'],
+          prerequisiteCheck: 'Not available in simplified mode',
+          difficultyLevel: 'INTERMEDIATE',
+          estimatedLearningTime: 'Manual review recommended',
+          learningPath: {
+            beforeWatching: 'Prepare for focused viewing',
+            duringWatching: 'Take notes on relevant sections',
+            afterWatching: 'Review and practice key concepts'
+          },
+          contentQuality: {
+            teachingClarity: 'Assessment not available',
+            practicalExamples: 'Assessment not available',
+            comprehensiveness: 'Assessment not available'
+          },
+          generatedAt: new Date().toISOString()
+        };
+      }
+    } catch (error) {
+      console.log('Simplified analysis also failed:', error.message);
+    }
+
+    // Ultimate fallback
+    return this.fallbackAnalysis(aiResponse);
+  }
+
+  /**
+   * Fixes common JSON formatting issues
+   * @param {string} jsonText - Raw JSON text
+   * @returns {string} - Cleaned JSON text
+   */
+  fixCommonJsonIssues(jsonText) {
+    console.log('Starting JSON cleanup...');
+    let cleaned = jsonText;
+
+    // Fix trailing commas in arrays and objects
+    const beforeTrailing = cleaned.length;
+    cleaned = cleaned.replace(/,(\s*[}\]])/g, '$1');
+    if (cleaned.length !== beforeTrailing) {
+      console.log('Fixed trailing commas');
+    }
+
+    // Fix missing commas between array elements
+    const beforeArrayCommas = cleaned.length;
+    cleaned = cleaned.replace(/"\s*\n\s*"/g, '",\n    "');
+    if (cleaned.length !== beforeArrayCommas) {
+      console.log('Fixed missing array commas');
+    }
+
+    // Fix missing commas between object properties
+    const beforeObjectCommas = cleaned.length;
+    cleaned = cleaned.replace(/"\s*\n\s*"/g, '",\n    "');
+    if (cleaned.length !== beforeObjectCommas) {
+      console.log('Fixed missing object commas');
+    }
+
+    // Remove any non-JSON content before the opening brace
+    const firstBrace = cleaned.indexOf('{');
+    if (firstBrace > 0) {
+      console.log(`Removing ${firstBrace} characters before first brace`);
+      cleaned = cleaned.substring(firstBrace);
+    }
+
+    // Remove any non-JSON content after the closing brace
+    const lastBrace = cleaned.lastIndexOf('}');
+    if (lastBrace >= 0 && lastBrace < cleaned.length - 1) {
+      const removedChars = cleaned.length - lastBrace - 1;
+      console.log(`Removing ${removedChars} characters after last brace`);
+      cleaned = cleaned.substring(0, lastBrace + 1);
+    }
+
+    console.log('JSON cleanup completed');
+    return cleaned;
   }
 
   /**

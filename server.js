@@ -67,6 +67,35 @@ app.get('/health', (req, res) => {
   });
 });
 
+// Test Ollama connection endpoint
+app.get('/test-ollama', async (req, res) => {
+  try {
+    console.log('Testing Ollama connection...');
+    const testResponse = await aiAnalysisService.ollama.chat({
+      model: 'qwen3:8b',
+      messages: [{
+        role: 'user',
+        content: 'Hello, respond with just "OK"'
+      }]
+    });
+    
+    console.log('Ollama test successful');
+    res.json({
+      status: 'Ollama connection OK',
+      response: testResponse.message.content.substring(0, 100)
+    });
+  } catch (error) {
+    console.log('Ollama test failed:', error.message);
+    res.status(500).json({
+      status: 'Ollama connection failed',
+      error: error.message
+    });
+  }
+});
+
+// Request deduplication map
+const activeAnalyses = new Map();
+
 // MVP Analysis endpoint
 app.post('/api/analyze', analysisLimiter, async (req, res) => {
   const startTime = Date.now();
@@ -104,6 +133,16 @@ app.post('/api/analyze', analysisLimiter, async (req, res) => {
       });
     }
 
+    // Check for duplicate requests
+    const requestKey = `${videoUrl}-${learningIntention.trim()}`;
+    if (activeAnalyses.has(requestKey)) {
+      return res.status(429).json({
+        error: 'Analysis already in progress for this video and learning intention',
+        code: 'ANALYSIS_IN_PROGRESS'
+      });
+    }
+
+    activeAnalyses.set(requestKey, true);
     console.log(`Starting analysis for video: ${videoUrl}`);
     console.log(`Learning intention: "${learningIntention}"`);
 
@@ -192,12 +231,19 @@ app.post('/api/analyze', analysisLimiter, async (req, res) => {
 
     console.log(`Analysis completed successfully in ${processingTime}ms`);
     
+    // Clean up active analysis
+    activeAnalyses.delete(requestKey);
+    
     res.json(response);
 
   } catch (error) {
     console.error('Unexpected error during analysis:', error);
     
     const processingTime = Date.now() - startTime;
+    
+    // Clean up active analysis
+    const requestKey = `${req.body.videoUrl}-${req.body.learningIntention?.trim()}`;
+    activeAnalyses.delete(requestKey);
     
     res.status(500).json({
       error: 'An unexpected error occurred during analysis',
